@@ -5,38 +5,64 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
-    </Filter>
     <Filter Include="Resource Files">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Header Files\vulkan">
+      <UniqueIdentifier>{825bf77a-ce4c-48ea-af42-79d1b56fc4c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\os">
+      <UniqueIdentifier>{42fc76a9-7922-4c19-9836-e69f39b1682b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\util">
+      <UniqueIdentifier>{eabf029f-8941-4303-8c7e-519edd39a543}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\vulkan">
+      <UniqueIdentifier>{95fadcb5-2204-4079-8a7f-68660e143717}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\os">
+      <UniqueIdentifier>{b7b16d7c-700a-4321-b1fb-acec2eeb4932}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\util">
+      <UniqueIdentifier>{0d03e3cf-8917-44d6-8b90-0392701edc8b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="timing.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
     <ClCompile Include="os_input.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\os</Filter>
     </ClCompile>
     <ClCompile Include="os_support.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="timing.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\os</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="debug_assertions.h">
+      <Filter>Header Files\util</Filter>
+    </ClInclude>
     <ClInclude Include="os_input.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\os</Filter>
     </ClInclude>
     <ClInclude Include="os_support.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\os</Filter>
     </ClInclude>
     <ClInclude Include="timing.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\util</Filter>
     </ClInclude>
-    <ClInclude Include="debug_assertions.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="vkh.h">
+      <Filter>Header Files\vulkan</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="vkh.cpp">
+      <Filter>Source Files\vulkan</Filter>
+    </None>
   </ItemGroup>
 </Project>

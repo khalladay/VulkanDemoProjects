@@ -13,7 +13,6 @@
     MessageBox(NULL,dbgstr, "FATAL ERROR", MB_OK);															\
 }
 
-
 #define DIRECTINPUT_VERSION 0x0800
 #include <dinput.h>
 

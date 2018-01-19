@@ -94,7 +94,7 @@
       <AdditionalIncludeDirectories>../../internal/include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>commonlib.lib;dxguid.lib;Winmm.lib;dinput8.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>commonlib-debug.lib;dxguid.lib;Winmm.lib;dinput8.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
     </Link>
   </ItemDefinitionGroup>
