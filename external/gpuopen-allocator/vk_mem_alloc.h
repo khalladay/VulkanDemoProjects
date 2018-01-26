@@ -1737,7 +1737,7 @@ remove them if not needed.
 #endif
 
 #ifndef VMA_MAX
-   #define VMA_MAX(v1, v2)    (std::max((v1), (v2)))
+   #define VMA_MAX(v1, v2)    (std::max( (v1), (v2) ))
 #endif
 
 #ifndef VMA_SWAP

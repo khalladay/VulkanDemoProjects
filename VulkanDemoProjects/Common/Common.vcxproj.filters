@@ -14,4 +14,30 @@
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Common.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkh.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="debug.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkh_init.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkh_types.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os_init.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="timing.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="os_input.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+  </ItemGroup>
 </Project>

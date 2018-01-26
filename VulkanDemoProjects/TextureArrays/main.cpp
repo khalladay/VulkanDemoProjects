@@ -1,19 +1,18 @@
-#include "os_support.h"
-#include "os_input.h"
-#include "timing.h"
-#include <stdio.h>
+#include "Common.h"
+
+vkh::VkhContext appContext;
 
 void mainLoop();
 void shutdown();
-void logFPSAverage(double avg);
 
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE pInstance, LPSTR cmdLine, int showCode)
 {
-	HWND wndHdl = os_makeWindow(Instance, "Texture Arrays", 800, 600);
-	os_initializeInput();
+	HWND wndHdl = OS::makeWindow(Instance, "Texture Array Demo", 800, 600);
+	OS::initializeInput();
+
+	initContext(appContext, "Texture Array Demo", Instance, wndHdl);
 
 	mainLoop();
-	shutdown();
 
 	return 0;
 }
@@ -29,7 +28,7 @@ void mainLoop()
 
 	FPSData fpsData = { 0 };
 
-	fpsData.logCallback = logFPSAverage;
+	//fpsData.logCallback = logFPSAverage;
 
 	startTimingFrame(fpsData);
 
@@ -38,19 +37,21 @@ void mainLoop()
 		double dt = endTimingFrame(fpsData);
 		startTimingFrame(fpsData);
 
-		os_handleEvents();
-		os_pollInput();
+		OS::handleEvents();
+		OS::pollInput();
 
-		if (getKey(KEY_ESCAPE))
+		if (OS::getKey(KEY_ESCAPE))
 		{
 			running = false;
 			break;
 		}
-
 	}
+
+	shutdown();
 }
 
 void shutdown()
 {
-	os_shutdownInput();
+	OS::shutdownInput();
 }
+

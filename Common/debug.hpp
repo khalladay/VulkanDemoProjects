@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstdint>
+#include <atlstr.h>
+
 #if _DEBUG
 #define NDEBUG 1
 

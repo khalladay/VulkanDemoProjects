@@ -1,9 +1,13 @@
-#include "vkh.h"
-#include <Windows.h>
-#include "debug_assertions.h"
+#pragma once
 
-namespace vkh_debug
+//vkh_init - functions that will only be called during the initialization of the VkhContext
+
+#include "vkh.hpp"
+
+namespace _vkh
 {
+	using namespace vkh;
+
 	VkDebugReportCallbackEXT callback;
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -19,51 +23,15 @@ namespace vkh_debug
 		printf("[VALIDATION LAYER] %s \n", msg);
 		return VK_FALSE;
 	}
-}
-
-namespace vkh
-{
 
 	void createWin32Context(VkhContext& outContext, uint32_t width, uint32_t height, HINSTANCE Instance, HWND wndHdl, const char* applicationName);
 	void createWindowsInstance(VkInstance& outInstance, const char* applicationName);
+	void createWin32Surface(VkhSurface& outSurface, VkInstance& vkInstance, HINSTANCE win32Instance, HWND wndHdl);
 	void getDiscretePhysicalDevice(VkhPhysicalDevice& outDevice, VkInstance& inInstance, const VkhSurface& surface);
 	void createLogicalDevice(VkDevice& outDevice, VkhDeviceQueues& outqueues, const VkhPhysicalDevice& physDevice);
-	void createDepthBuffer(VkhRenderBuffer& outBuffer, uint32_t width, uint32_t height, const VkDevice& device, const VkPhysicalDevice& gpu);
+	void createSwapchainForSurface(VkhSwapChain& outSwapChain, VkhPhysicalDevice& physDevice, const VkDevice& lDevice, const VkhSurface& surface);
+	void createCommandPool(VkCommandPool& outPool, const VkDevice& lDevice, const VkhPhysicalDevice& physDevice, uint32_t queueFamilyIdx);
 
-	void init(uint32_t width, uint32_t height, HINSTANCE Instance, HWND wndHdl, const char* applicationName)
-	{
-		createWin32Context(Context, width, height, Instance, wndHdl, applicationName);
-	
-		createDepthBuffer(Context.depthBuffer, width, height, Context.device, Context.gpu.device);
-
-
-		/*createMainRenderPass();
-
-		createFrameBuffers(frameBuffers, GContext.swapChain, &depthBuffer.view, GContext.mainRenderPass, GContext.device);
-
-		uint32_t swapChainImageCount = static_cast<uint32_t>(GContext.swapChain.imageViews.size());
-		commandBuffers.resize(swapChainImageCount);
-		for (uint32_t i = 0; i < swapChainImageCount; ++i)
-		{
-			createCommandBuffer(commandBuffers[i], GContext.gfxCommandPool, GContext.device);
-		}*/
-	}
-
-	void createWin32Context(VkhContext& outContext, uint32_t width, uint32_t height, HINSTANCE Instance, HWND wndHdl, const char* applicationName)
-	{
-		createWindowsInstance(outContext.instance, applicationName);
-		createWin32Surface(outContext.surface, outContext.instance, Instance, wndHdl);
-		getDiscretePhysicalDevice(outContext.gpu, outContext.instance, outContext.surface);
-		createLogicalDevice(outContext.device, outContext.deviceQueues, outContext.gpu);
-
-		VmaAllocatorCreateInfo allocatorInfo = {};
-		allocatorInfo.physicalDevice = Context.gpu.device;
-		allocatorInfo.device = Context.device;
-
-		VmaAllocator allocator;
-		vmaCreateAllocator(&allocatorInfo, &allocator);
-
-	}
 
 	void createWindowsInstance(VkInstance& outInstance, const char* applicationName)
 	{
@@ -198,12 +166,66 @@ namespace vkh
 		VkDebugReportCallbackCreateInfoEXT createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
 		createInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
-		createInfo.pfnCallback = vkh_debug::debugCallback;
+		createInfo.pfnCallback = debugCallback;
 
 		PFN_vkCreateDebugReportCallbackEXT CreateDebugReportCallback = VK_NULL_HANDLE;
 		CreateDebugReportCallback = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(outInstance, "vkCreateDebugReportCallbackEXT");
-		CreateDebugReportCallback(outInstance, &createInfo, NULL, &vkh_debug::callback);
+		CreateDebugReportCallback(outInstance, &createInfo, NULL, &callback);
 #endif
+	}
+
+	void createWin32Context(VkhContext& outContext, uint32_t width, uint32_t height, HINSTANCE Instance, HWND wndHdl, const char* applicationName)
+	{
+		createWindowsInstance(outContext.instance, applicationName);
+		createWin32Surface(outContext.surface, outContext.instance, Instance, wndHdl);
+		getDiscretePhysicalDevice(outContext.gpu, outContext.instance, outContext.surface);
+		createLogicalDevice(outContext.device, outContext.deviceQueues, outContext.gpu);
+
+		createSwapchainForSurface(outContext.swapChain, outContext.gpu, outContext.device, outContext.surface);
+		createCommandPool(outContext.gfxCommandPool, outContext.device, outContext.gpu, outContext.gpu.graphicsQueueFamilyIdx);
+		createCommandPool(outContext.transferCommandPool, outContext.device, outContext.gpu, outContext.gpu.transferQueueFamilyIdx);
+		createCommandPool(outContext.presentCommandPool, outContext.device, outContext.gpu, outContext.gpu.presentQueueFamilyIdx);
+
+		//since we're only creating one of these for each material, this means we'll support 128 materials
+
+		std::vector<VkDescriptorType> types;
+		types.reserve(3);
+		types.push_back(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC);
+		types.push_back(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+		types.push_back(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+		types.push_back(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+		types.push_back(VK_DESCRIPTOR_TYPE_SAMPLER);
+
+		std::vector<uint32_t> counts;
+		counts.reserve(3);
+		counts.push_back(128);
+		counts.push_back(128);
+		counts.push_back(128);
+		counts.push_back(8192);
+		counts.push_back(128);
+
+		createDescriptorPool(outContext.descriptorPool, outContext.device, types, counts);
+
+		createVkSemaphore(outContext.imageAvailableSemaphore, outContext.device);
+		createVkSemaphore(outContext.renderFinishedSemaphore, outContext.device);
+
+		outContext.frameFences.resize(outContext.swapChain.imageViews.size());
+		for (uint32_t i = 0; i < outContext.frameFences.size(); ++i)
+		{
+			createFence(outContext.frameFences[i], outContext.device);
+		}
+	}
+
+	void createWin32Surface(VkhSurface& outSurface, VkInstance& vkInstance, HINSTANCE win32Instance, HWND wndHdl)
+	{
+		VkWin32SurfaceCreateInfoKHR createInfo;
+		createInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+		createInfo.hwnd = wndHdl;
+		createInfo.hinstance = win32Instance;
+		createInfo.pNext = NULL;
+		createInfo.flags = 0;
+		VkResult res = vkCreateWin32SurfaceKHR(vkInstance, &createInfo, nullptr, &outSurface.surface);
+		checkf(res == VK_SUCCESS, "Error creating win32 surface");
 	}
 
 	void getDiscretePhysicalDevice(VkhPhysicalDevice& outDevice, VkInstance& inInstance, const VkhSurface& surface)
@@ -318,8 +340,8 @@ namespace vkh
 		vkGetPhysicalDeviceProperties(outDevice.device, &deviceProperties);
 		printf("Selected GPU: %s\n", deviceProperties.deviceName);
 
-		assert(found);
-		assert(res == VK_SUCCESS);
+		checkf(found, "Could not find suitable device");
+		checkf(res == VK_SUCCESS, "");
 
 		vkGetPhysicalDeviceFeatures(outDevice.device, &outDevice.features);
 		vkGetPhysicalDeviceMemoryProperties(outDevice.device, &outDevice.memProps);
@@ -382,19 +404,7 @@ namespace vkh
 			if (foundGfx && foundTransfer && foundPresent) break;
 		}
 
-		assert(foundGfx && foundPresent && foundTransfer);
-	}
-
-	void createWin32Surface(VkhSurface& outSurface, VkInstance& vkInstance, HINSTANCE win32Instance, HWND wndHdl)
-	{
-		VkWin32SurfaceCreateInfoKHR createInfo;
-		createInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		createInfo.hwnd = wndHdl;
-		createInfo.hinstance = win32Instance;
-		createInfo.pNext = NULL;
-		createInfo.flags = 0;
-		VkResult res = vkCreateWin32SurfaceKHR(vkInstance, &createInfo, nullptr, &outSurface.surface);
-		assert(res == VK_SUCCESS);
+		checkf(foundGfx && foundPresent && foundTransfer, "Failed to find all required device queues");
 	}
 
 	void createLogicalDevice(VkDevice& outDevice, VkhDeviceQueues& outqueues, const VkhPhysicalDevice& physDevice)
@@ -471,7 +481,7 @@ namespace vkh
 		}
 
 		VkResult res = vkCreateDevice(physDevice.device, &createInfo, nullptr, &outDevice);
-		assert(res == VK_SUCCESS);
+		checkf(res == VK_SUCCESS, "Error creating device");
 
 		vkGetDeviceQueue(outDevice, physDevice.graphicsQueueFamilyIdx, 0, &outqueues.graphicsQueue);
 		vkGetDeviceQueue(outDevice, physDevice.transferQueueFamilyIdx, 0, &outqueues.transferQueue);
@@ -479,45 +489,154 @@ namespace vkh
 
 	}
 
-	void createDepthBuffer(VkhRenderBuffer& outBuffer, uint32_t width, uint32_t height, const VkDevice& device, const VkPhysicalDevice& gpu)
+	void createSwapchainForSurface(VkhSwapChain& outSwapChain, VkhPhysicalDevice& physDevice, const VkDevice& lDevice, const VkhSurface& surface)
 	{
-		createImage(outBuffer.handle,
-			width,
-			height,
-			VK_FORMAT_D32_SFLOAT,
-			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+		//choose the surface format to use
+		VkSurfaceFormatKHR desiredFormat;
+		VkPresentModeKHR desiredPresentMode;
+		VkExtent2D swapExtent;
 
-		//createImageView(outBuffer.view, depthFormat(), VK_IMAGE_ASPECT_DEPTH_BIT, 1, outBuffer.handle, device);
+		bool foundFormat = false;
+
+		//if there is no preferred format, the formats array only contains VK_FORMAT_UNDEFINED
+		if (physDevice.swapChainSupport.formats.size() == 1 && physDevice.swapChainSupport.formats[0].format == VK_FORMAT_UNDEFINED)
+		{
+			desiredFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+			desiredFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
+			foundFormat = true;
+		}
+
+		//otherwise we can't just choose any format we want, but still let's try to grab one that we know will work for us first
+		if (!foundFormat)
+		{
+			for (uint32_t i = 0; i < physDevice.swapChainSupport.formats.size(); ++i)
+			{
+				const auto& availableFormat = physDevice.swapChainSupport.formats[i];
+
+				if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+				{
+					desiredFormat = availableFormat;
+				}
+			}
+		}
+
+		//if our preferred format isn't available, let's just grab the first available because yolo
+		if (!foundFormat)
+		{
+			desiredFormat = physDevice.swapChainSupport.formats[0];
+		}
+
+		//present mode - VK_PRESENT_MODE_MAILBOX_KHR is for triple buffering, VK_PRESENT_MODE_FIFO_KHR is double, VK_PRESENT_MODE_IMMEDIATE_KHR is single
+		//VK_PRESENT_MODE_FIFO_KHR  is guaranteed to be available.
+		//let's prefer triple buffering, and fall back to double if it isn't supported
+
+		desiredPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+		for (uint32_t i = 0; i < physDevice.swapChainSupport.presentModes.size(); ++i)
+		{
+			const auto& availablePresentMode = physDevice.swapChainSupport.presentModes[i];
+
+			if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR)
+			{
+				desiredPresentMode = availablePresentMode;
+			}
+		}
+
+		//update physdevice for new surface size
+		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice.device, surface.surface, &physDevice.swapChainSupport.capabilities);
+
+		//swap extent is the resolution of the swapchain
+		swapExtent = physDevice.swapChainSupport.capabilities.currentExtent;
+
+		//need 1 more than minimum image count for triple buffering
+		uint32_t imageCount = physDevice.swapChainSupport.capabilities.minImageCount + 1;
+		if (physDevice.swapChainSupport.capabilities.maxImageCount > 0 && imageCount > physDevice.swapChainSupport.capabilities.maxImageCount)
+		{
+			imageCount = physDevice.swapChainSupport.capabilities.maxImageCount;
+		}
+
+		//now that everything is set up, we need to actually create the swap chain
+		VkSwapchainCreateInfoKHR createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		createInfo.surface = surface.surface;
+		createInfo.minImageCount = imageCount;
+		createInfo.imageFormat = desiredFormat.format;
+		createInfo.imageColorSpace = desiredFormat.colorSpace;
+		createInfo.imageExtent = swapExtent;
+		createInfo.imageArrayLayers = 1; //always 1 unless a stereoscopic app
+
+										 //here, we're rendering directly to the swap chain, but if we were using post processing, this might be VK_IMAGE_USAGE_TRANSFER_DST_BIT 
+		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+
+		if (physDevice.graphicsQueueFamilyIdx != physDevice.presentQueueFamilyIdx)
+		{
+			createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+			createInfo.queueFamilyIndexCount = 2;
+			uint32_t queueFamilyIndices[] = { physDevice.graphicsQueueFamilyIdx, physDevice.presentQueueFamilyIdx };
+			createInfo.pQueueFamilyIndices = queueFamilyIndices;
+
+		}
+		else
+		{
+			createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+			createInfo.queueFamilyIndexCount = 0; // Optional
+			createInfo.pQueueFamilyIndices = nullptr; // Optional	
+		}
+
+		createInfo.preTransform = physDevice.swapChainSupport.capabilities.currentTransform;
+		createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+		createInfo.presentMode = desiredPresentMode;
+		createInfo.clipped = VK_TRUE;
+		createInfo.pNext = NULL;
+		createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+		VkResult res = vkCreateSwapchainKHR(lDevice, &createInfo, nullptr, &outSwapChain.swapChain);
+		checkf(res == VK_SUCCESS, "Error creating swapchain");
+
+		//get images for swap chain
+		vkGetSwapchainImagesKHR(lDevice, outSwapChain.swapChain, &imageCount, nullptr);
+		outSwapChain.imageHandles.resize(imageCount);
+		outSwapChain.imageViews.resize(imageCount);
+
+		vkGetSwapchainImagesKHR(lDevice, outSwapChain.swapChain, &imageCount, &outSwapChain.imageHandles[0]);
+
+		outSwapChain.imageFormat = desiredFormat.format;
+		outSwapChain.extent = swapExtent;
+
+		//create image views
+		for (uint32_t i = 0; i < outSwapChain.imageHandles.size(); i++)
+		{
+			createImageView(outSwapChain.imageViews[i], outSwapChain.imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, outSwapChain.imageHandles[i], lDevice);
+		}
 	}
-	
-	void createImage(VkhImage& outImage, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage)
+
+	void createDescriptorPool(VkDescriptorPool& outPool, const VkDevice& device, std::vector<VkDescriptorType>& descriptorTypes, std::vector<uint32_t>& maxDescriptors)
 	{
-		VkImageCreateInfo imageInfo = {};
-		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageInfo.extent.width = width;
-		imageInfo.extent.height = height;
-		imageInfo.extent.depth = 1;
-		imageInfo.mipLevels = 1;
-		imageInfo.arrayLayers = 1;
-		imageInfo.format = format;
-		imageInfo.tiling = tiling;
-		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageInfo.usage = usage;
-		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		
-		VmaAllocationCreateInfo imageAllocCreateInfo = {};
-		imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+		std::vector<VkDescriptorPoolSize> poolSizes;
+		poolSizes.reserve(descriptorTypes.size());
+		uint32_t summedDescCount = 0;
 
-		VkResult res = vmaCreateImage(Context.allocator, &imageInfo, &imageAllocCreateInfo, &outImage.image, &outImage.allocation, nullptr);
+		for (uint32_t i = 0; i < descriptorTypes.size(); ++i)
+		{
+			VkDescriptorPoolSize poolSize = {};
+			poolSize.type = descriptorTypes[i];
+			poolSize.descriptorCount = maxDescriptors[i];
+			poolSizes.push_back(poolSize);
 
+			summedDescCount += poolSize.descriptorCount;
+		}
 
-	//	vmaCreateImage(Context.allocator, )
+		VkDescriptorPoolCreateInfo poolInfo = {};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+		poolInfo.pPoolSizes = &poolSizes[0];
+		poolInfo.maxSets = summedDescCount;
 
-		VkResult res = vkCreateImage(Context.device, &imageInfo, nullptr, &outImage);
-		assert(res == VK_SUCCESS);
+		VkResult res = vkCreateDescriptorPool(device, &poolInfo, nullptr, &outPool);
+		checkf(res == VK_SUCCESS, "Error creating descriptor pool");
 	}
+
+
+
 
 }

@@ -1,50 +1,29 @@
-#include "os_support.h"
-#include "debug_assertions.h"
+#pragma once
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 
 #define NOMINMAX
 #include <Windows.h>
 #include <timeapi.h>
-
 #include <atlstr.h>
 
+struct AppInfo
+{
+	struct HWND__* wndHdl;
+	struct HINSTANCE__* instance;
+	int curW;
+	int curH;
+};
+
 struct AppInfo GAppInfo;
-static double initialMS = 0.0;
 
-void(*resizeCallback)(int, int) = nullptr;
-
-LRESULT CALLBACK defaultWndFunc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
+namespace os_support
 {
-	LRESULT result = 0;
-	switch (message)
-	{
-	case WM_DESTROY:
-	{
-		PostQuitMessage(0);
-	}break;
-	case WM_SIZE:
-	{
-		RECT rect;
-		GetWindowRect(window, &rect);
-		GAppInfo.curW = rect.right - rect.left;
-		GAppInfo.curH = rect.bottom - rect.top;
+	void(*resizeCallback)(int, int) = nullptr;
+	static double initialMS = 0.0;
 
-		if (resizeCallback)
-		{
-			resizeCallback(GAppInfo.curW, GAppInfo.curH);
-		}
-	}
-	default:
-	{
-		result = DefWindowProc(window, message, wParam, lParam);
-	}break;
-	}
-
-	return result;
-}
-
-void os_setResizeCallback(void(*cb)(int, int))
-{
-	resizeCallback = cb;
 }
 
 HWND os_makeWindow(HINSTANCE Instance, const char* title, unsigned int width, unsigned int height)
@@ -84,9 +63,14 @@ HWND os_makeWindow(HINSTANCE Instance, const char* title, unsigned int width, un
 	GAppInfo.wndHdl = wndHdl;
 	GAppInfo.curH = height;
 	GAppInfo.curW = width;
-	initialMS = os_getMilliseconds();
+	os_support::initialMS = os_getMilliseconds();
 
 	return wndHdl;
+}
+
+void os_setResizeCallback(void(*cb)(int, int))
+{
+	os_support::resizeCallback = cb;
 }
 
 void os_handleEvents()
@@ -107,9 +91,39 @@ double os_getMilliseconds()
 	if (s_use_qpc) {
 		LARGE_INTEGER now;
 		QueryPerformanceCounter(&now);
-		return (1000LL * now.QuadPart) / (double)s_frequency.QuadPart - initialMS;
+		return (1000LL * now.QuadPart) / (double)s_frequency.QuadPart - os_support::initialMS;
 	}
 	else {
-		return GetTickCount64() - initialMS;
+		return GetTickCount64() - os_support::initialMS;
 	}
+}
+
+LRESULT CALLBACK defaultWndFunc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	LRESULT result = 0;
+	switch (message)
+	{
+	case WM_DESTROY:
+	{
+		PostQuitMessage(0);
+	}break;
+	case WM_SIZE:
+	{
+		RECT rect;
+		GetWindowRect(window, &rect);
+		GAppInfo.curW = rect.right - rect.left;
+		GAppInfo.curH = rect.bottom - rect.top;
+
+		if (os_support::resizeCallback)
+		{
+			os_support::resizeCallback(GAppInfo.curW, GAppInfo.curH);
+		}
+	}
+	default:
+	{
+		result = DefWindowProc(window, message, wParam, lParam);
+	}break;
+	}
+
+	return result;
 }

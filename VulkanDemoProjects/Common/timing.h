@@ -1,15 +1,37 @@
-#include "timing.h"
-#include "os_support.h"
+#pragma once
+#include "os_init.h"
+#include <stdint.h>
+#define FPS_DATA_FRAME_HISTORY_SIZE 1000
+
+struct TimeSpan
+{
+	double start;
+	double end;
+};
+
+void startTiming(TimeSpan& span);
+double endTiming(TimeSpan& span);
+
+struct FPSData
+{
+	TimeSpan curFrame;
+
+	double totalTime;
+	uint32_t numSamples;
+
+	void(*logCallback)(double);
+
+};
 
 void startTiming(TimeSpan& span)
 {
-	span.start = os_getMilliseconds();
-	span.end = os_getMilliseconds();
+	span.start = OS::getMilliseconds();
+	span.end = OS::getMilliseconds();
 }
 
 double endTiming(TimeSpan& span)
 {
-	span.end = os_getMilliseconds();
+	span.end = OS::getMilliseconds();
 	return span.end - span.start;
 }
 
