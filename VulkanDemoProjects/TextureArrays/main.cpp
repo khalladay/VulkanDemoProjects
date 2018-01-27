@@ -2,6 +2,13 @@
 
 vkh::VkhContext appContext;
 
+struct DemoData
+{
+	vkh::MeshAsset quadMesh;
+};
+
+DemoData demoData;
+
 void mainLoop();
 void shutdown();
 
@@ -10,7 +17,15 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE pInstance, LPSTR cmdLine, int
 	HWND wndHdl = OS::makeWindow(Instance, "Texture Array Demo", 800, 600);
 	OS::initializeInput();
 
-	initContext(appContext, "Texture Array Demo", Instance, wndHdl);
+	vkh::VkhContextCreateInfo ctxtInfo = {};
+	ctxtInfo.types.push_back(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+	ctxtInfo.types.push_back(VK_DESCRIPTOR_TYPE_SAMPLER);
+	ctxtInfo.typeCounts.push_back(8);
+	ctxtInfo.typeCounts.push_back(1);
+
+	initContext(ctxtInfo, "Texture Array Demo", Instance, wndHdl, appContext);
+
+	vkh::Mesh::quad(demoData.quadMesh, appContext);
 
 	mainLoop();
 

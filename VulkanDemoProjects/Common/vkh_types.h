@@ -7,11 +7,39 @@
 
 namespace vkh
 {
+	struct VkhContext;
+
 	enum ECommandPoolType
 	{
 		Graphics,
 		Transfer,
 		Present
+	};
+
+	struct Allocation
+	{
+		VkDeviceMemory handle;
+		uint32_t type;
+		uint32_t id;
+		VkDeviceSize size;
+		VkDeviceSize offset;
+		VkhContext* context;
+	};
+
+	struct AllocationCreateInfo
+	{
+		VkMemoryPropertyFlags usage;
+		uint32_t memoryTypeIndex;
+		VkDeviceSize size;
+	};
+
+	struct AllocatorInterface
+	{
+		void(*activate)(VkhContext*);
+		void(*alloc)(Allocation&, AllocationCreateInfo);
+		void(*free)(Allocation&);
+		size_t(*allocatedSize)(uint32_t);
+		uint32_t(*numAllocs)();
 	};
 
 	struct VkhDeviceQueues
@@ -25,6 +53,13 @@ namespace vkh
 	{
 		VkSurfaceKHR surface;
 		VkFormat format;
+	};
+
+	struct VkhCommandBuffer
+	{
+		VkCommandBuffer buffer;
+		ECommandPoolType owningPool;
+		VkhContext* context;
 	};
 
 	struct VkhSwapChainSupportInfo
@@ -47,6 +82,15 @@ namespace vkh
 		uint32_t							transferQueueFamilyIdx;
 	};
 
+	struct VkhSwapChain
+	{
+		VkSwapchainKHR				swapChain;
+		VkFormat					imageFormat;
+		VkExtent2D					extent;
+		std::vector<VkImage>		imageHandles;
+		std::vector<VkImageView>	imageViews;
+	};
+
 	struct VkhContext
 	{
 		VkInstance				instance;
@@ -54,6 +98,15 @@ namespace vkh
 		VkhPhysicalDevice		gpu;
 		VkDevice				device;
 		VkhDeviceQueues			deviceQueues;
+		VkhSwapChain			swapChain;
+		VkCommandPool			gfxCommandPool;
+		VkCommandPool			transferCommandPool;
+		VkCommandPool			presentCommandPool;
+		VkDescriptorPool		descriptorPool;
+		VkSemaphore				imageAvailableSemaphore;
+		VkSemaphore				renderFinishedSemaphore;
+		std::vector<VkFence>	frameFences;
 
+		AllocatorInterface		allocator;
 	};
 }
