@@ -55,6 +55,14 @@ namespace vkh
 		VkFormat format;
 	};
 
+	struct VkhRenderBuffer
+	{
+		VkImage			handle;
+		VkImageView		view;
+		Allocation		imageMemory;
+	};
+
+
 	struct VkhCommandBuffer
 	{
 		VkCommandBuffer buffer;

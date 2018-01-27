@@ -78,6 +78,17 @@ namespace vkh
 		checkf(vk_res == VK_SUCCESS, "Error creating vk fence");
 	}
 
+	void waitForFence(VkFence& fence, const VkDevice& device)
+	{
+		if (fence)
+		{
+			if (vkGetFenceStatus(device, fence) == VK_SUCCESS)
+			{
+				vkWaitForFences(device, 1, &fence, true, 0);
+			}
+		}
+	}
+
 	void createCommandPool(VkCommandPool& outPool, const VkDevice& lDevice, const VkhPhysicalDevice& physDevice, uint32_t queueFamilyIdx)
 	{
 		VkCommandPoolCreateInfo poolInfo = {};
@@ -93,6 +104,105 @@ namespace vkh
 	{
 		//this is sorta weird
 		mem.context->allocator.free(mem);
+	}
+
+	void createRenderPass(VkRenderPass& outPass, std::vector<VkAttachmentDescription>& colorAttachments, VkAttachmentDescription* depthAttachment, const VkDevice& device)
+	{
+		std::vector<VkAttachmentReference> attachRefs;
+
+		std::vector<VkAttachmentDescription> allAttachments;
+		allAttachments = colorAttachments;
+
+		uint32_t attachIdx = 0;
+		while (attachIdx < colorAttachments.size())
+		{
+			VkAttachmentReference ref = { 0 };
+			ref.attachment = attachIdx++;
+			ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			attachRefs.push_back(ref);
+		}
+
+		VkSubpassDescription subpass = {};
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.colorAttachmentCount = static_cast<uint32_t>(colorAttachments.size());
+		subpass.pColorAttachments = &attachRefs[0];
+
+		VkAttachmentReference depthRef = { 0 };
+
+		if (depthAttachment)
+		{
+			VkAttachmentReference depthRef = { 0 };
+			depthRef.attachment = attachIdx;
+			depthRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+			subpass.pDepthStencilAttachment = &depthRef;
+			allAttachments.push_back(*depthAttachment);
+		}
+
+
+		VkRenderPassCreateInfo renderPassInfo = {};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.attachmentCount = static_cast<uint32_t>(allAttachments.size());
+		renderPassInfo.pAttachments = &allAttachments[0];
+		renderPassInfo.subpassCount = 1;
+		renderPassInfo.pSubpasses = &subpass;
+
+		//we need a subpass dependency for transitioning the image to the right format, because by default, vulkan
+		//will try to do that before we have acquired an image from our fb
+		VkSubpassDependency dependency = {};
+		dependency.srcSubpass = VK_SUBPASS_EXTERNAL; //External means outside of the render pipeline, in srcPass, it means before the render pipeline
+		dependency.dstSubpass = 0; //must be higher than srcSubpass
+		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependency.srcAccessMask = 0;
+		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+		//add the dependency to the renderpassinfo
+		renderPassInfo.dependencyCount = 1;
+		renderPassInfo.pDependencies = &dependency;
+
+		VkResult res = vkCreateRenderPass(device, &renderPassInfo, nullptr, &outPass);
+		checkf(res == VK_SUCCESS, "Error creating render pass");
+	}
+
+	void createCommandBuffer(VkCommandBuffer& outBuffer, VkCommandPool& pool, const VkDevice& lDevice)
+	{
+		VkCommandBufferAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.commandPool = pool;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandBufferCount = 1;
+
+		VkResult res = vkAllocateCommandBuffers(lDevice, &allocInfo, &outBuffer);
+		checkf(res == VK_SUCCESS, "Error creating command buffer");
+	}
+
+	void createFrameBuffers(std::vector<VkFramebuffer>& outBuffers, const VkhSwapChain& swapChain, const VkImageView* depthBufferView, const VkRenderPass& renderPass, const VkDevice& device)
+	{
+		outBuffers.resize(swapChain.imageViews.size());
+
+		for (uint32_t i = 0; i < outBuffers.size(); i++)
+		{
+			std::vector<VkImageView> attachments;
+			attachments.push_back(swapChain.imageViews[i]);
+
+			if (depthBufferView)
+			{
+				attachments.push_back(*depthBufferView);
+			}
+
+			VkFramebufferCreateInfo framebufferInfo = {};
+			framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+			framebufferInfo.renderPass = renderPass;
+			framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+			framebufferInfo.pAttachments = &attachments[0];
+			framebufferInfo.width = swapChain.extent.width;
+			framebufferInfo.height = swapChain.extent.height;
+			framebufferInfo.layers = 1;
+
+			VkResult r = vkCreateFramebuffer(device, &framebufferInfo, nullptr, &outBuffers[i]);
+			checkf(r == VK_SUCCESS, "Error creating framebuffer");
+		}
 	}
 
 	void allocateDeviceMemory(Allocation& outMem, AllocationCreateInfo info, VkhContext& ctxt)
