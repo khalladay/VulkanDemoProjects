@@ -48,5 +48,8 @@
     <ClInclude Include="vkh_mesh.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="vkh_texture.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

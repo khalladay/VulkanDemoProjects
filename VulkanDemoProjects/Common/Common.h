@@ -10,3 +10,4 @@
 #include "os_input.h"
 #include "timing.h"
 #include "vkh_mesh.h"
+#include "vkh_texture.h"

@@ -5,12 +5,18 @@ vkh::VkhContext appContext;
 struct DemoData
 {
 	vkh::MeshAsset quadMesh;
+	vkh::TextureAsset textures[8];
 
 	std::vector<VkFramebuffer>		frameBuffers;
 	vkh::VkhRenderBuffer			depthBuffer;
 	std::vector<VkCommandBuffer>	commandBuffers;
 
 	VkRenderPass					mainRenderPass;
+
+	//We only have 1 material, so this can be stored here.
+	VkPipelineLayout				pipelineLayout;
+	VkDescriptorSet					descriptorSet;
+
 };
 
 DemoData demoData;
@@ -19,6 +25,7 @@ void mainLoop();
 void shutdown();
 void createMainRenderPass();
 void render();
+void setupShader();
 
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE pInstance, LPSTR cmdLine, int showCode)
 {
@@ -44,6 +51,12 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE pInstance, LPSTR cmdLine, int
 
 	vkh::Mesh::quad(demoData.quadMesh, appContext);
 
+	for (uint32_t i = 0; i < 8; ++i)
+	{
+		char filename[32];
+		sprintf_s(filename, 32, "textures\\%i.png", i);
+		vkh::Texture::make(demoData.textures[i], filename, appContext);
+	}
 
 	mainLoop();
 
@@ -66,6 +79,11 @@ void createMainRenderPass()
 	renderPassAttachments.push_back(colorAttachment);
 
 	vkh::createRenderPass(demoData.mainRenderPass, renderPassAttachments, nullptr, appContext.device);
+
+}
+
+void setupShader()
+{
 
 }
 
