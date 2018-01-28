@@ -51,5 +51,8 @@
     <ClInclude Include="vkh_texture.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="file_utils.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

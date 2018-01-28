@@ -14,6 +14,12 @@ namespace vkh
 		glm::vec4 col;
 	};
 
+	struct VertexRenderData
+	{
+		VkVertexInputAttributeDescription* attrDescriptions;
+		uint32_t attrCount;
+	};
+
 	struct MeshAsset
 	{
 		VkBuffer vBuffer;
@@ -24,13 +30,27 @@ namespace vkh
 
 		uint32_t vCount;
 		uint32_t iCount;
-
-		std::vector<VkVertexInputAttributeDescription> attrDescriptions;
 	};
 }
 
 namespace vkh::Mesh
 {
+	const VertexRenderData* vertexRenderData()
+	{
+		static VertexRenderData* vkRenderData = nullptr;
+		if (!vkRenderData)
+		{
+			vkRenderData = (VertexRenderData*)malloc(sizeof(VertexRenderData));
+			vkRenderData->attrCount = 2;
+
+			vkRenderData->attrDescriptions = (VkVertexInputAttributeDescription*)malloc(sizeof(VkVertexInputAttributeDescription) * vkRenderData->attrCount);
+			vkRenderData->attrDescriptions[0] = { 0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos) };
+			vkRenderData->attrDescriptions[1] = { 1,0,VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv) };
+		}
+
+		return vkRenderData;
+	}
+
 	void make(MeshAsset& outAsset, VkhContext& ctxt, Vertex* vertices, uint32_t vertexCount, uint32_t* indices, uint32_t indexCount)
 	{
 		size_t vBufferSize = sizeof(Vertex) * vertexCount + sizeof(uint32_t) * indexCount;
@@ -94,9 +114,6 @@ namespace vkh::Mesh
 		copyBuffer(stagingBuffer, m.iBuffer, iBufferSize, 0, 0, ctxt);
 		freeDeviceMemory(stagingMemory);
 		vkDestroyBuffer(ctxt.device, stagingBuffer, nullptr);
-
-		m.attrDescriptions.push_back({ 0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos) });
-		m.attrDescriptions.push_back({ 1,0,VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv) });
 	}
 
 	void quad(MeshAsset& outAsset, VkhContext& ctxt, float width = 2.0f, float height = 2.0f, float xOffset = 0.0f, float yOffset = 0.0f)

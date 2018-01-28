@@ -123,6 +123,7 @@
   <ItemGroup>
     <ClInclude Include="Common.h" />
     <ClInclude Include="debug.h" />
+    <ClInclude Include="file_utils.h" />
     <ClInclude Include="os_init.h" />
     <ClInclude Include="os_input.h" />
     <ClInclude Include="timing.h" />

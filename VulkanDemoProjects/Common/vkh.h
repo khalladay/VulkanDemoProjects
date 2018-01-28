@@ -306,6 +306,24 @@ namespace vkh
 		submitScratchCommandBuffer(scratch);
 	}
 
+	void createShaderModule(VkShaderModule& outModule, const char* binaryData, size_t dataSize, const VkhContext& ctxt)
+	{
+		VkShaderModuleCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		createInfo.codeSize = dataSize;
+
+		//data for vulkan is stored in uint32_t  -  so we have to temporarily copy it to a container that respects that alignment
+
+		std::vector<uint32_t> codeAligned;
+		codeAligned.resize((uint32_t)(dataSize / sizeof(uint32_t) + 1));
+
+		memcpy(&codeAligned[0], binaryData, dataSize);
+		createInfo.pCode = &codeAligned[0];
+
+		VkResult res = vkCreateShaderModule(ctxt.device, &createInfo, nullptr, &outModule);
+		checkf(res == VK_SUCCESS, "Error creating shader module");
+
+	}
 
 	uint32_t getMemoryType(const VkPhysicalDevice& device, uint32_t memoryTypeBitsRequirement, VkMemoryPropertyFlags requiredProperties)
 	{
