@@ -2,7 +2,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 layout(set = 0, binding = 0) uniform sampler samp;
-layout(set = 0, binding = 1) uniform texture2D textures[8];
+layout(set = 0, binding = 1) uniform texture2D textures[78];
 
 layout(push_constant) uniform PER_OBJECT 
 { 
