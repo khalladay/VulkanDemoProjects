@@ -54,5 +54,8 @@
     <ClInclude Include="file_utils.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="vkh_material.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

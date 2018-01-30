@@ -130,6 +130,7 @@
     <ClInclude Include="vkh.h" />
     <ClInclude Include="vkh_alloc.h" />
     <ClInclude Include="vkh_initializers.h" />
+    <ClInclude Include="vkh_material.h" />
     <ClInclude Include="vkh_mesh.h" />
     <ClInclude Include="vkh_setup.h" />
     <ClInclude Include="vkh_texture.h" />

@@ -12,3 +12,4 @@
 #include "vkh_mesh.h"
 #include "vkh_texture.h"
 #include "file_utils.h"
+#include "vkh_material.h"

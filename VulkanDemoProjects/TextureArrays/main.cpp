@@ -239,8 +239,6 @@ void setupGraphicsPipeline()
 	res = vkCreateGraphicsPipelines(appContext.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &demoData.graphicsPipeline);
 	checkf(res == VK_SUCCESS, "Error creating graphics pipeline");
 
-
-
 	freeDataBuffer(vShaderData);
 	freeDataBuffer(fShaderData);
 
