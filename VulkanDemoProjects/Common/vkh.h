@@ -7,6 +7,7 @@
 #include "debug.h"
 
 #include "vkh_types.h"
+
 namespace vkh
 {
 	void createDescriptorPool(VkDescriptorPool& outPool, const VkDevice& device, std::vector<VkDescriptorType>& descriptorTypes, std::vector<uint32_t>& maxDescriptors)
@@ -177,6 +178,36 @@ namespace vkh
 		checkf(res == VK_SUCCESS, "Error creating command buffer");
 	}
 
+	uint32_t getMemoryType(const VkPhysicalDevice& device, uint32_t memoryTypeBitsRequirement, VkMemoryPropertyFlags requiredProperties)
+	{
+		VkPhysicalDeviceMemoryProperties memProperties;
+		vkGetPhysicalDeviceMemoryProperties(device, &memProperties);
+
+		//The VkPhysicalDeviceMemoryProperties structure has two arraysL memoryTypes and memoryHeaps.
+		//Memory heaps are distinct memory resources like dedicated VRAM and swap space in RAM 
+		//for when VRAM runs out.The different types of memory exist within these heaps.Right now 
+		//we'll only concern ourselves with the type of memory and not the heap it comes from, 
+		//but you can imagine that this can affect performance.
+
+		for (uint32_t memoryIndex = 0; memoryIndex < memProperties.memoryTypeCount; memoryIndex++)
+		{
+			const uint32_t memoryTypeBits = (1 << memoryIndex);
+			const bool isRequiredMemoryType = memoryTypeBitsRequirement & memoryTypeBits;
+
+			const VkMemoryPropertyFlags properties = memProperties.memoryTypes[memoryIndex].propertyFlags;
+			const bool hasRequiredProperties = (properties & requiredProperties) == requiredProperties;
+
+			if (isRequiredMemoryType && hasRequiredProperties)
+			{
+				return static_cast<int32_t>(memoryIndex);
+			}
+
+		}
+
+		checkf(0, "Could not find a valid memory type for requiredProperties");
+		return 0;
+	}
+
 	void createFrameBuffers(std::vector<VkFramebuffer>& outBuffers, const VkhSwapChain& swapChain, const VkImageView* depthBufferView, const VkRenderPass& renderPass, const VkDevice& device)
 	{
 		outBuffers.resize(swapChain.imageViews.size());
@@ -310,7 +341,6 @@ namespace vkh
 	{
 		VkShaderModuleCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		createInfo.codeSize = dataSize;
 
 		//data for vulkan is stored in uint32_t  -  so we have to temporarily copy it to a container that respects that alignment
 
@@ -319,40 +349,77 @@ namespace vkh
 
 		memcpy(&codeAligned[0], binaryData, dataSize);
 		createInfo.pCode = &codeAligned[0];
+		createInfo.codeSize = dataSize;
+
+		checkf(dataSize % 4 == 0, "Invalid data size for .spv file -> are you sure that it compiled correctly?");
 
 		VkResult res = vkCreateShaderModule(ctxt.device, &createInfo, nullptr, &outModule);
 		checkf(res == VK_SUCCESS, "Error creating shader module");
 
 	}
 
-	uint32_t getMemoryType(const VkPhysicalDevice& device, uint32_t memoryTypeBitsRequirement, VkMemoryPropertyFlags requiredProperties)
+	void createBuffer(VkBuffer& outBuffer, Allocation& bufferMemory, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkhContext& ctxt)
 	{
-		VkPhysicalDeviceMemoryProperties memProperties;
-		vkGetPhysicalDeviceMemoryProperties(device, &memProperties);
+		VkBufferCreateInfo bufferInfo = {};
+		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferInfo.size = size;
+		bufferInfo.usage = usage;
 
-		//The VkPhysicalDeviceMemoryProperties structure has two arraysL memoryTypes and memoryHeaps.
-		//Memory heaps are distinct memory resources like dedicated VRAM and swap space in RAM 
-		//for when VRAM runs out.The different types of memory exist within these heaps.Right now 
-		//we'll only concern ourselves with the type of memory and not the heap it comes from, 
-		//but you can imagine that this can affect performance.
+		//concurrent so it can be used by the graphics and transfer queues
 
-		for (uint32_t memoryIndex = 0; memoryIndex < memProperties.memoryTypeCount; memoryIndex++)
+		std::vector<uint32_t> queues;
+		queues.push_back(ctxt.gpu.graphicsQueueFamilyIdx);
+
+		if (ctxt.gpu.graphicsQueueFamilyIdx != ctxt.gpu.transferQueueFamilyIdx)
 		{
-			const uint32_t memoryTypeBits = (1 << memoryIndex);
-			const bool isRequiredMemoryType = memoryTypeBitsRequirement & memoryTypeBits;
-
-			const VkMemoryPropertyFlags properties = memProperties.memoryTypes[memoryIndex].propertyFlags;
-			const bool hasRequiredProperties = (properties & requiredProperties) == requiredProperties;
-
-			if (isRequiredMemoryType && hasRequiredProperties)
-			{
-				return static_cast<int32_t>(memoryIndex);
-			}
-
+			queues.push_back(ctxt.gpu.transferQueueFamilyIdx);
+			bufferInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
 		}
+		else bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-		checkf(0, "Could not find a valid memory type for requiredProperties");
-		return 0;
+
+		bufferInfo.pQueueFamilyIndices = &queues[0];
+		bufferInfo.queueFamilyIndexCount = static_cast<uint32_t>(queues.size());
+
+		VkResult res = vkCreateBuffer(ctxt.device, &bufferInfo, nullptr, &outBuffer);
+		checkf(res == VK_SUCCESS, "Error creating buffer");
+
+		VkMemoryRequirements memRequirements;
+		vkGetBufferMemoryRequirements(ctxt.device, outBuffer, &memRequirements);
+
+		AllocationCreateInfo allocInfo = {};
+		allocInfo.size = memRequirements.size;
+		allocInfo.memoryTypeIndex = getMemoryType(ctxt.gpu.device, memRequirements.memoryTypeBits, properties);
+		allocInfo.usage = properties;
+
+		ctxt.allocator.alloc(bufferMemory, allocInfo);
+		vkBindBufferMemory(ctxt.device, outBuffer, bufferMemory.handle, bufferMemory.offset);
+	}
+
+	void copyDataToBuffer(VkBuffer* buffer, uint32_t dataSize, uint32_t dstOffset, char* data, VkhContext& ctxt)
+	{
+		VkBuffer stagingBuffer;
+		vkh::Allocation stagingMemory;
+
+		vkh::createBuffer(stagingBuffer,
+			stagingMemory,
+			dataSize,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			ctxt);
+
+		void* mappedStagingBuffer;
+		vkMapMemory(ctxt.device, stagingMemory.handle, stagingMemory.offset, dataSize, 0, &mappedStagingBuffer);
+
+		memset(mappedStagingBuffer, 0, dataSize);
+		memcpy(mappedStagingBuffer, data, dataSize);
+
+		vkUnmapMemory(ctxt.device, stagingMemory.handle);
+
+		vkh::VkhCommandBuffer scratch = vkh::beginScratchCommandBuffer(vkh::ECommandPoolType::Transfer, ctxt);
+		vkh::copyBuffer(stagingBuffer, *buffer, dataSize, 0, dstOffset, scratch);
+		vkh::submitScratchCommandBuffer(scratch);
+		vkh::freeDeviceMemory(stagingMemory);
 	}
 
 	void createImage(VkImage& outImage, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, const VkhContext& ctxt)

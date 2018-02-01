@@ -1,4 +1,7 @@
 #include "Common.h"
+#include <glm\glm.hpp>
+
+#define BUFFER_ARRAY_SIZE 8
 
 vkh::VkhContext appContext;
 
@@ -16,12 +19,17 @@ struct DemoData
 
 	VkPipelineLayout				pipelineLayout[2];
 	VkPipeline						graphicsPipeline[2];
+
+	VkBuffer						sharedBuffer;
+	vkh::Allocation					bufferMemory;
 };
 
 DemoData demoData;
 
 void setupDemo();
 void createMainRenderPass();
+void setupDescriptorSet();
+void writeDescriptorSet();
 void mainLoop();
 void shutdown();
 void logFPSAverage(double avg);
@@ -33,13 +41,11 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE pInstance, LPSTR cmdLine, int
 	OS::initializeInput();
 
 	vkh::VkhContextCreateInfo ctxtInfo = {};
-	ctxtInfo.types.push_back(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
-	ctxtInfo.types.push_back(VK_DESCRIPTOR_TYPE_SAMPLER);
-	ctxtInfo.typeCounts.push_back(8);
-	ctxtInfo.typeCounts.push_back(1);
+	ctxtInfo.types.push_back(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+	ctxtInfo.typeCounts.push_back(32);
 
 	initContext(ctxtInfo, "Uniform Buffer Array Demo", Instance, wndHdl, appContext);
-
+	setupDemo();
 	mainLoop();
 	shutdown();
 
@@ -48,8 +54,10 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE pInstance, LPSTR cmdLine, int
 
 void setupDemo()
 {
-	vkh::Mesh::quad(demoData.quadMeshes[0], appContext, 1.0f, 2.0f, -1.0f, 0.0f);
-	vkh::Mesh::quad(demoData.quadMeshes[1], appContext, 1.0f, 2.0f, 1.0f, 0.0f);
+	vkh::Mesh::quad(demoData.quadMeshes[0], appContext, 1.0f, 2.0f, -0.5f, 0.0f);
+	vkh::Mesh::quad(demoData.quadMeshes[1], appContext, 1.0f, 2.0f, 0.5f, 0.0f);
+
+	createMainRenderPass();
 
 	vkh::createFrameBuffers(demoData.frameBuffers, appContext.swapChain, nullptr, demoData.mainRenderPass, appContext.device);
 
@@ -60,7 +68,7 @@ void setupDemo()
 		vkh::createCommandBuffer(demoData.commandBuffers[i], appContext.gfxCommandPool, appContext.device);
 	}
 
-	createMainRenderPass();
+	setupDescriptorSet();
 
 	vkh::VkhMaterialCreateInfo createInfo = {};
 	createInfo.renderPass = demoData.mainRenderPass;
@@ -68,7 +76,7 @@ void setupDemo()
 	createInfo.outPipelineLayout = &demoData.pipelineLayout[0];
 	createInfo.descSetLayouts.push_back(demoData.descSetLayout);
 
-	vkh::createBasicMaterial("shader\\common_vert.vert", "shaders\\frag1.frag", appContext, createInfo);
+	vkh::createBasicMaterial("shaders\\common_vert.spv", "shaders\\frag1.spv", appContext, createInfo);
 
 	vkh::VkhMaterialCreateInfo createInfo2 = {};
 	createInfo2.renderPass = demoData.mainRenderPass;
@@ -76,7 +84,89 @@ void setupDemo()
 	createInfo2.outPipelineLayout = &demoData.pipelineLayout[1];
 	createInfo2.descSetLayouts.push_back(demoData.descSetLayout);
 
-	vkh::createBasicMaterial("shader\\common_vert.vert", "shaders\\frag2.frag", appContext, createInfo2);
+	vkh::createBasicMaterial("shaders\\common_vert.spv", "shaders\\frag2.spv", appContext, createInfo2);
+
+	writeDescriptorSet();
+}
+
+
+void setupDescriptorSet()
+{
+	VkDescriptorSetLayoutBinding layoutBinding;
+	layoutBinding = vkh::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 0, 1);
+
+	VkDescriptorSetLayoutCreateInfo layoutInfo = vkh::descriptorSetLayoutCreateInfo(&layoutBinding, 1);
+	VkResult res = vkCreateDescriptorSetLayout(appContext.device, &layoutInfo, nullptr, &demoData.descSetLayout);
+	checkf(res == VK_SUCCESS, "Error creating desc set layout");
+
+	VkDescriptorSetAllocateInfo allocInfo = vkh::descriptorSetAllocateInfo(&demoData.descSetLayout, 1, appContext.descriptorPool);
+	res = vkAllocateDescriptorSets(appContext.device, &allocInfo, &demoData.descriptorSet);
+	checkf(res == VK_SUCCESS, "Error allocating global descriptor set");
+}
+
+void writeDescriptorSet()
+{
+	__declspec(align(16)) struct LayoutA
+	{
+		__declspec(align(16)) glm::vec4 colorA;
+		__declspec(align(16)) glm::vec4 colorB;
+	};
+
+	__declspec(align(16)) struct LayoutB
+	{
+		__declspec(align(16)) float r;
+		__declspec(align(16)) glm::vec4 colorB;
+	};
+
+	uint32_t sizeInt = sizeof(int);
+	uint32_t sizeF = sizeof(float);
+	uint32_t sizeVec = sizeof(glm::vec4);
+	uint32_t sizeA = sizeof(LayoutA);
+	uint32_t sizeB = sizeof(LayoutB);
+
+	static_assert(sizeof(LayoutA) == sizeof(LayoutB), "Both shader uniform layouts must be the same size");
+	static_assert(sizeof(LayoutA) == 32, "LayoutA is an unexpected size");
+	
+	char* sharedData = (char*)malloc(sizeof(LayoutA) * BUFFER_ARRAY_SIZE);
+	LayoutA first = { glm::vec4(1,0,1,1), glm::vec4(1,0,1,0) };
+	LayoutB second = { 1.0, glm::vec4(1,1,1,1)};
+
+	//memset(sharedData, 1, sizeof(LayoutA) * BUFFER_ARRAY_SIZE);
+	memcpy(sharedData, &first, 32);
+	memcpy(sharedData + 32, &second, 32);
+
+	LayoutB* bLayouts = (LayoutB*)sharedData;
+	LayoutB& secondL = bLayouts[1];
+
+
+	vkh::createBuffer(demoData.sharedBuffer,
+		demoData.bufferMemory,
+		32 * BUFFER_ARRAY_SIZE,
+		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		appContext);
+
+
+	vkh::copyDataToBuffer(&demoData.sharedBuffer, 32 * BUFFER_ARRAY_SIZE, 0, sharedData, appContext);
+
+	VkWriteDescriptorSet setWrite;
+
+	VkDescriptorBufferInfo bufferInfo = {};
+	bufferInfo.buffer = demoData.sharedBuffer;
+	bufferInfo.offset = 0;
+	bufferInfo.range = VK_WHOLE_SIZE;
+
+	setWrite = {};
+	setWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	setWrite.dstBinding = 0;
+	setWrite.dstArrayElement = 0;
+	setWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	setWrite.descriptorCount = 1;
+	setWrite.dstSet = demoData.descriptorSet;
+	setWrite.pBufferInfo = &bufferInfo;
+	setWrite.pImageInfo = 0;
+
+	vkUpdateDescriptorSets(appContext.device, 1, &setWrite, 0, nullptr);
 
 }
 
@@ -135,7 +225,106 @@ void mainLoop()
 
 void render()
 {
+	//acquire an image from the swap chain
+	uint32_t imageIndex;
 
+	//using uint64 max for timeout disables it
+	VkResult res = vkAcquireNextImageKHR(appContext.device, appContext.swapChain.swapChain, UINT64_MAX, appContext.imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+	vkh::waitForFence(appContext.frameFences[imageIndex], appContext.device);
+	vkResetFences(appContext.device, 1, &appContext.frameFences[imageIndex]);
+
+	//record drawing
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+	beginInfo.pInheritanceInfo = nullptr; // Optional
+	vkResetCommandBuffer(demoData.commandBuffers[imageIndex], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+	res = vkBeginCommandBuffer(demoData.commandBuffers[imageIndex], &beginInfo);
+
+
+	VkRenderPassBeginInfo renderPassInfo = {};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = demoData.mainRenderPass;
+	renderPassInfo.framebuffer = demoData.frameBuffers[imageIndex];
+	renderPassInfo.renderArea.offset = { 0, 0 };
+	renderPassInfo.renderArea.extent = appContext.swapChain.extent;
+
+	std::vector<VkClearValue> clearColors;
+
+	//color
+	clearColors.push_back({ 0.0f, 0.0f, 0.0f, 1.0f });
+
+	renderPassInfo.clearValueCount = static_cast<uint32_t>(clearColors.size());
+	renderPassInfo.pClearValues = &clearColors[0];
+	vkCmdBeginRenderPass(demoData.commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+
+	for (uint32_t i = 0; i < 2; ++i)
+	{
+		vkCmdBindPipeline(demoData.commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, demoData.graphicsPipeline[i]);
+
+		int arrayIdx = i;
+
+		vkCmdPushConstants(
+			demoData.commandBuffers[imageIndex],
+			demoData.pipelineLayout[i],
+			VK_SHADER_STAGE_FRAGMENT_BIT,
+			0,
+			sizeof(int),
+			(void*)&arrayIdx);
+
+		vkCmdBindDescriptorSets(demoData.commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, demoData.pipelineLayout[i], 0, 1, &demoData.descriptorSet, 0, 0);
+
+		VkBuffer vertexBuffers[] = { demoData.quadMeshes[i].vBuffer };
+		VkDeviceSize vertexOffsets[] = { 0 };
+		vkCmdBindVertexBuffers(demoData.commandBuffers[imageIndex], 0, 1, vertexBuffers, vertexOffsets);
+		vkCmdBindIndexBuffer(demoData.commandBuffers[imageIndex], demoData.quadMeshes[i].iBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdDrawIndexed(demoData.commandBuffers[imageIndex], static_cast<uint32_t>(demoData.quadMeshes[i].iCount), 1, 0, 0, 0);
+
+	}
+
+	vkCmdEndRenderPass(demoData.commandBuffers[imageIndex]);
+	res = vkEndCommandBuffer(demoData.commandBuffers[imageIndex]);
+	assert(res == VK_SUCCESS);
+
+
+	//submit
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	//wait on writing colours to the buffer until the semaphore says the buffer is available
+	VkSemaphore waitSemaphores[] = { appContext.imageAvailableSemaphore };
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = waitSemaphores;
+	submitInfo.pWaitDstStageMask = waitStages;
+
+	submitInfo.commandBufferCount = 1;
+
+	VkSemaphore signalSemaphores[] = { appContext.renderFinishedSemaphore };
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = signalSemaphores;
+	submitInfo.pCommandBuffers = &demoData.commandBuffers[imageIndex];
+	submitInfo.commandBufferCount = 1;
+
+	res = vkQueueSubmit(appContext.deviceQueues.graphicsQueue, 1, &submitInfo, appContext.frameFences[imageIndex]);
+	assert(res == VK_SUCCESS);
+
+	//present
+
+	VkPresentInfoKHR presentInfo = {};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = signalSemaphores;
+
+	VkSwapchainKHR swapChains[] = { appContext.swapChain.swapChain };
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = swapChains;
+	presentInfo.pImageIndices = &imageIndex;
+	presentInfo.pResults = nullptr; // Optional
+	res = vkQueuePresentKHR(appContext.deviceQueues.transferQueue, &presentInfo);
 }
 
 void shutdown()

@@ -1,15 +1,15 @@
 #version 450 core
 #extension GL_ARB_separate_shader_objects : enable
 
-struct Data64
+struct Data32
 {
 	vec4 colorA;
 	vec4 colorB;
 };
 
-layout(binding = 0, set = 0) uniform DATA_64
+layout(binding = 0, set = 0) uniform DATA_32
 {
-	Data64 testing[8];
+	Data32 testing[8];
 }data;
 
 layout(push_constant) uniform PER_OBJECT 
