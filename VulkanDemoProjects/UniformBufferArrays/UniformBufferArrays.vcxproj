@@ -126,6 +126,7 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="compile_shaders.bat" />
     <None Include="shaders\common_vert.vert" />
     <None Include="shaders\frag1.frag" />
     <None Include="shaders\frag2.frag" />

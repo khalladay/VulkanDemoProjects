@@ -20,13 +20,16 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\common_vert.vert">
-      <Filter>Resource Files</Filter>
-    </None>
     <None Include="shaders\frag1.frag">
       <Filter>Resource Files</Filter>
     </None>
     <None Include="shaders\frag2.frag">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="compile_shaders.bat">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="shaders\common_vert.vert">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>

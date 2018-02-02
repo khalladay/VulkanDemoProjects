@@ -2,12 +2,13 @@
 #include <glm\glm.hpp>
 
 #define BUFFER_ARRAY_SIZE 8
+#define SHARED_UNIFORM_SIZE 48
 
 vkh::VkhContext appContext;
 
 struct DemoData
 {
-	vkh::MeshAsset quadMeshes[2];
+	vkh::MeshAsset quadMeshes[4];
 
 	std::vector<VkFramebuffer>		frameBuffers;
 	std::vector<VkCommandBuffer>	commandBuffers;
@@ -54,8 +55,10 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE pInstance, LPSTR cmdLine, int
 
 void setupDemo()
 {
-	vkh::Mesh::quad(demoData.quadMeshes[0], appContext, 1.0f, 2.0f, -0.5f, 0.0f);
-	vkh::Mesh::quad(demoData.quadMeshes[1], appContext, 1.0f, 2.0f, 0.5f, 0.0f);
+	vkh::Mesh::quad(demoData.quadMeshes[0], appContext, 1.0f, 1.0f, -0.5f, 0.5f);
+	vkh::Mesh::quad(demoData.quadMeshes[1], appContext, 1.0f, 1.0f, 0.5f, 0.5f);
+	vkh::Mesh::quad(demoData.quadMeshes[2], appContext, 1.0f, 1.0f, -0.5f, -0.5f);
+	vkh::Mesh::quad(demoData.quadMeshes[3], appContext, 1.0f, 1.0f, 0.5f, -0.5f);
 
 	createMainRenderPass();
 
@@ -110,44 +113,41 @@ void writeDescriptorSet()
 	{
 		__declspec(align(16)) glm::vec4 colorA;
 		__declspec(align(16)) glm::vec4 colorB;
+		__declspec(align(16)) glm::vec4 colorC;
+
 	};
 
 	__declspec(align(16)) struct LayoutB
 	{
 		__declspec(align(16)) float r;
-		__declspec(align(16)) glm::vec4 colorB;
+		__declspec(align(16)) glm::vec4 colorA;
+		__declspec(align(16)) int x;
 	};
 
-	uint32_t sizeInt = sizeof(int);
-	uint32_t sizeF = sizeof(float);
-	uint32_t sizeVec = sizeof(glm::vec4);
-	uint32_t sizeA = sizeof(LayoutA);
-	uint32_t sizeB = sizeof(LayoutB);
-
 	static_assert(sizeof(LayoutA) == sizeof(LayoutB), "Both shader uniform layouts must be the same size");
-	static_assert(sizeof(LayoutA) == 32, "LayoutA is an unexpected size");
+	static_assert(sizeof(LayoutA) == SHARED_UNIFORM_SIZE, "LayoutA is an unexpected size");
 	
 	char* sharedData = (char*)malloc(sizeof(LayoutA) * BUFFER_ARRAY_SIZE);
-	LayoutA first = { glm::vec4(1,0,1,1), glm::vec4(1,0,1,0) };
-	LayoutB second = { 1.0, glm::vec4(1,1,1,1)};
+	LayoutA first = { glm::vec4(0.5,0,0,0), glm::vec4(0.25,0.5,0,0), glm::vec4(0.0,0.25,0.25,1) };
+	LayoutB second = { 1.0, glm::vec4(1,1,1,1), 1};
+	LayoutA third = { glm::vec4(0.0,0,0,0), glm::vec4(0.0,0.75,0,0), glm::vec4(0.0,0.25,0.25,1) };
+	LayoutB fourth = { 0.0, glm::vec4(0,0,1,1), 1 };
 
-	//memset(sharedData, 1, sizeof(LayoutA) * BUFFER_ARRAY_SIZE);
-	memcpy(sharedData, &first, 32);
-	memcpy(sharedData + 32, &second, 32);
-
-	LayoutB* bLayouts = (LayoutB*)sharedData;
-	LayoutB& secondL = bLayouts[1];
-
+	char* writeLocation = sharedData;
+	memcpy(writeLocation, &first, SHARED_UNIFORM_SIZE);
+	memcpy((writeLocation += SHARED_UNIFORM_SIZE), &second, SHARED_UNIFORM_SIZE);
+	memcpy((writeLocation += SHARED_UNIFORM_SIZE), &third, SHARED_UNIFORM_SIZE);
+	memcpy((writeLocation += SHARED_UNIFORM_SIZE), &fourth, SHARED_UNIFORM_SIZE);
 
 	vkh::createBuffer(demoData.sharedBuffer,
 		demoData.bufferMemory,
-		32 * BUFFER_ARRAY_SIZE,
+		SHARED_UNIFORM_SIZE * BUFFER_ARRAY_SIZE,
 		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		appContext);
 
 
-	vkh::copyDataToBuffer(&demoData.sharedBuffer, 32 * BUFFER_ARRAY_SIZE, 0, sharedData, appContext);
+	vkh::copyDataToBuffer(&demoData.sharedBuffer, SHARED_UNIFORM_SIZE * BUFFER_ARRAY_SIZE, 0, sharedData, appContext);
 
 	VkWriteDescriptorSet setWrite;
 
@@ -260,21 +260,23 @@ void render()
 	vkCmdBeginRenderPass(demoData.commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 
-	for (uint32_t i = 0; i < 2; ++i)
+	for (uint32_t i = 0; i < 4; ++i)
 	{
-		vkCmdBindPipeline(demoData.commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, demoData.graphicsPipeline[i]);
+		uint32_t material = i % 2;
+
+		vkCmdBindPipeline(demoData.commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, demoData.graphicsPipeline[material]);
 
 		int arrayIdx = i;
 
 		vkCmdPushConstants(
 			demoData.commandBuffers[imageIndex],
-			demoData.pipelineLayout[i],
+			demoData.pipelineLayout[material],
 			VK_SHADER_STAGE_FRAGMENT_BIT,
 			0,
 			sizeof(int),
 			(void*)&arrayIdx);
 
-		vkCmdBindDescriptorSets(demoData.commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, demoData.pipelineLayout[i], 0, 1, &demoData.descriptorSet, 0, 0);
+		vkCmdBindDescriptorSets(demoData.commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, demoData.pipelineLayout[material], 0, 1, &demoData.descriptorSet, 0, 0);
 
 		VkBuffer vertexBuffers[] = { demoData.quadMeshes[i].vBuffer };
 		VkDeviceSize vertexOffsets[] = { 0 };
