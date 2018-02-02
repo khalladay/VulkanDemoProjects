@@ -259,6 +259,7 @@ void render()
 	renderPassInfo.pClearValues = &clearColors[0];
 	vkCmdBeginRenderPass(demoData.commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+	vkCmdBindDescriptorSets(demoData.commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, demoData.pipelineLayout[0], 0, 1, &demoData.descriptorSet, 0, 0);
 
 	for (uint32_t i = 0; i < 4; ++i)
 	{
@@ -276,7 +277,6 @@ void render()
 			sizeof(int),
 			(void*)&arrayIdx);
 
-		vkCmdBindDescriptorSets(demoData.commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, demoData.pipelineLayout[material], 0, 1, &demoData.descriptorSet, 0, 0);
 
 		VkBuffer vertexBuffers[] = { demoData.quadMeshes[i].vBuffer };
 		VkDeviceSize vertexOffsets[] = { 0 };
