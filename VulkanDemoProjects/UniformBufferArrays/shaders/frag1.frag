@@ -23,5 +23,7 @@ layout(location=0) out vec4 outColor;
 
 void main()
 {
-	outColor = data.testing[pc.dataIdx].colorA + data.testing[pc.dataIdx].colorB + data.testing[pc.dataIdx].colorC;
+	outColor = data.testing[pc.dataIdx].colorA 
+			+ data.testing[pc.dataIdx].colorB 
+			+ data.testing[pc.dataIdx].colorC;
 }

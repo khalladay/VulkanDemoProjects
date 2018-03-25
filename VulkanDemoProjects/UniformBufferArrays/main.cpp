@@ -109,15 +109,14 @@ void setupDescriptorSet()
 
 void writeDescriptorSet()
 {
-	__declspec(align(16)) struct LayoutA
+	struct LayoutA
 	{
 		__declspec(align(16)) glm::vec4 colorA;
 		__declspec(align(16)) glm::vec4 colorB;
 		__declspec(align(16)) glm::vec4 colorC;
-
 	};
 
-	__declspec(align(16)) struct LayoutB
+	struct LayoutB
 	{
 		__declspec(align(16)) float r;
 		__declspec(align(16)) glm::vec4 colorA;
@@ -189,7 +188,6 @@ void createMainRenderPass()
 
 }
 
-
 void logFPSAverage(double avg)
 {
 	printf("AVG FRAMETIME FOR LAST %i FRAMES: %f ms\n", FPS_DATA_FRAME_HISTORY_SIZE, avg);
@@ -201,7 +199,7 @@ void mainLoop()
 
 	FPSData fpsData = { 0 };
 
-	//fpsData.logCallback = logFPSAverage;
+	fpsData.logCallback = logFPSAverage;
 
 	startTimingFrame(fpsData);
 

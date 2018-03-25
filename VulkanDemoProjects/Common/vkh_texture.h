@@ -24,7 +24,8 @@ namespace vkh::Texture
 	void make(TextureAsset& outAsset, const char* filepath, VkhContext& ctxt)
 	{
 		TextureAsset& t = outAsset;
-
+		VkImageView view;
+		
 		int texWidth, texHeight, texChannels;
 
 		//STBI_rgb_alpha forces an alpha even if the image doesn't have one
